@@ -2,6 +2,27 @@
 
 All notable changes to EverClaw are documented here.
 
+## [2026.3.16] - 2026-03-12
+
+### Changed
+- **install-with-deps.sh** — Complete zero-prompt rewrite (5-stage build)
+  - `curl -fsSL https://get.everclaw.xyz | bash` now fully unattended
+  - Hardware detection (RAM, disk, GPU) ported from setup-ollama.sh
+  - All dependencies auto-install without prompts (Homebrew, Node.js, git, curl, OpenClaw)
+  - EverClaw clone/update is automatic (no "Update? [y/N]" prompt)
+  - Bootstrap key provisioned automatically (failure is non-fatal)
+  - Morpheus proxy-router auto-installs when ≥2 GB disk free
+  - Ollama local fallback auto-installs when ≥5 GB disk + ≥2 GB RAM
+  - Config merge via setup.mjs --apply --restart runs automatically
+  - Dashboard auto-opens after successful install (macOS/Linux)
+  - Dynamic success banner shows installed components + inference chain
+  - New flags: --skip-ollama, --skip-proxy (--auto-install now legacy no-op)
+  - --check-only shows hardware stats + gating preview for all components
+  - Zero `read -p` prompts in entire script (was 3)
+  - PII scan clean, bash -n syntax verified
+
+---
+
 ## [2026.3.15] - 2026-03-12
 
 ### Added
