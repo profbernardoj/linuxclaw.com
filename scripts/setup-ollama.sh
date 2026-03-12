@@ -11,7 +11,7 @@ set -euo pipefail
 #   bash scripts/setup-ollama.sh              # Dry-run (show what would happen)
 #   bash scripts/setup-ollama.sh --apply      # Install and configure
 #   bash scripts/setup-ollama.sh --status     # Check current Ollama status
-#   bash scripts/setup-ollama.sh --model qwen3.5:14b --apply  # Override model
+#   bash scripts/setup-ollama.sh --model qwen3.5:27b --apply   # Override model
 #   bash scripts/setup-ollama.sh --uninstall  # Remove Ollama from config
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -411,7 +411,7 @@ Examples:
   bash scripts/setup-ollama.sh --apply
 
   # Force a specific model
-  bash scripts/setup-ollama.sh --model qwen3.5:32b --apply
+  bash scripts/setup-ollama.sh --model qwen3.5:27b --apply
 
   # Install without service setup
   bash scripts/setup-ollama.sh --apply --no-service

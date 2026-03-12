@@ -263,7 +263,7 @@ Flags:
   --restart      Restart OpenClaw gateway after apply
   --template     Override OS auto-detection
   --with-ollama  Also setup local Ollama inference fallback
-  --ollama-model Override auto-detected Ollama model (e.g. qwen3.5:32b)
+  --ollama-model Override auto-detected Ollama model (e.g. qwen3.5:27b)
 `);
 }
 

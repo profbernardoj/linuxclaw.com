@@ -99,7 +99,7 @@ node ~/.openclaw/workspace/skills/everclaw/scripts/setup.mjs --key <API_KEY> --a
 | `--test` | Ping gateway after setup |
 | `--restart` | Restart OpenClaw gateway after apply |
 | `--with-ollama` | Also setup local Ollama inference as final fallback |
-| `--ollama-model <model>` | Override auto-detected Ollama model (e.g. `qwen3.5:32b`) |
+| `--ollama-model <model>` | Override auto-detected Ollama model (e.g. `qwen3.5:27b`) |
 
 ### 🏠 Local Inference Fallback (Ollama)
 
@@ -134,7 +134,7 @@ node scripts/setup.mjs --key <API_KEY> --with-ollama --apply --restart
 bash scripts/setup-ollama.sh --status
 
 # Force a specific model
-bash scripts/setup-ollama.sh --model qwen3.5:32b --apply
+bash scripts/setup-ollama.sh --model qwen3.5:27b --apply
 
 # Remove Ollama from OpenClaw config
 bash scripts/setup-ollama.sh --uninstall
