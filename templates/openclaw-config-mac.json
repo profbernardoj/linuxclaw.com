@@ -46,13 +46,12 @@
       "ollama": {
         "_comment": "Local Ollama inference fallback. Run 'bash scripts/setup-ollama.sh --apply' to auto-detect hardware and install the optimal model, or configure manually.",
         "baseUrl": "http://127.0.0.1:11434/v1",
-        "api": "openai-completions",
+        "api": "ollama",
         "models": [
           {
             "id": "qwen3.5:9b",
             "_note": "Auto-selected by setup-ollama.sh based on your hardware. Replace with your actual model.",
             "name": "Qwen3.5 9B (Local Ollama)",
-            "api": "openai-completions",
             "reasoning": false,
             "input": ["text"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },

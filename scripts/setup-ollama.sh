@@ -575,12 +575,11 @@ configure_openclaw() {
   provider_json=$(cat <<EOF
 {
   "baseUrl": "http://127.0.0.1:11434/v1",
-  "api": "openai-completions",
+  "api": "ollama",
   "models": [
     {
       "id": "${model}",
       "name": "$(echo "${model}" | sed 's/qwen3.5:/Qwen3.5 /' | sed 's/b$/B/') (Local Ollama)",
-      "api": "openai-completions",
       "reasoning": false,
       "input": ["text"],
       "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
