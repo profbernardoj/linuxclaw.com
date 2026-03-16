@@ -298,14 +298,19 @@ async function cmdSetup() {
   const privateKey = generatePrivateKey();
   const account = getAccount(privateKey);
 
-  if (!keychainStore(privateKey)) {
-    console.error("❌ Failed to store in Keychain. Wallet NOT saved.");
-    console.error("   You would need to save this key manually (NEVER share it):");
-    console.error(`   ${privateKey}`);
-    process.exit(1);
+  const keychainOk = keychainStore(privateKey);
+
+  if (!keychainOk) {
+    console.error("⚠️  Primary Keychain storage failed. Trying encrypted file fallback...");
+
+    if (!encryptedFileStore(privateKey)) {
+      console.error("❌ All storage backends failed. Wallet NOT saved.");
+      console.error("   Run 'setup' again after fixing storage issues.");
+      process.exit(1);
+    }
   }
 
-  const backend = getBackendName();
+  const backend = keychainOk ? getBackendName() : `encrypted file (${KEY_STORE_PATH})`;
   console.log("");
   console.log("╔══════════════════════════════════════════════════════════════╗");
   console.log("║  ♾️  Everclaw Wallet Created                                ║");
@@ -443,6 +448,37 @@ async function cmdSwap(tokenIn, amountStr) {
     sqrtPriceLimitX96: 0n,
   };
 
+  // === STAGE 3: Simulate + Rich Confirmation ===
+  console.log("🔍 Simulating swap...");
+  await publicClient.simulateContract({
+    address: UNISWAP_ROUTER,
+    abi: SWAP_ROUTER_ABI,
+    functionName: "exactInputSingle",
+    args: [swapParams],
+    account: walletClient.account,
+    value: isETH ? amountIn : 0n,
+  });
+  console.log("   ✅ Simulation passed");
+
+  console.log(`\n   Swap details:`);
+  console.log(`     In:  ${amountStr} ${tokenIn.toUpperCase()}`);
+  console.log(`     Expected out: ${formatEther(quotedOutput)} MOR`);
+  console.log(`     Min out (after ${SLIPPAGE_BPS / 100}% slippage): ${formatEther(amountOutMinimum)} MOR`);
+
+  const swapAnswer = await new Promise(r => {
+    process.stdout.write("\n⚠️  CONFIRM SWAP? (type yes to proceed) ");
+    process.stdin.once("data", d => r(d.toString().trim().toLowerCase()));
+  });
+  if (swapAnswer !== "yes") {
+    console.log("Cancelled by user.");
+    process.exit(0);
+  }
+
+  if (global.DRY_RUN) {
+    console.log("\n🔒 DRY-RUN: Simulation passed. Skipping actual swap transaction.");
+    process.exit(0);
+  }
+
   console.log("   Executing swap...");
 
   try {
@@ -493,6 +529,42 @@ async function cmdApprove(amountStr) {
   console.log(`   Amount: ${displayAmount}`);
   console.log(`   Spender: ${DIAMOND_CONTRACT}\n`);
 
+  // === STAGE 4: Simulate + Strong Unlimited Warning ===
+  console.log("🔍 Simulating approve...");
+  await publicClient.simulateContract({
+    address: MOR_TOKEN,
+    abi: ERC20_ABI,
+    functionName: "approve",
+    args: [DIAMOND_CONTRACT, amount],
+    account: walletClient.account,
+  });
+  console.log("   ✅ Simulation passed");
+
+  const isUnlimited = !amountStr;
+  if (isUnlimited) {
+    console.log("\n⚠️  CRITICAL SECURITY WARNING:");
+    console.log("   You are approving UNLIMITED MOR spending by the Diamond contract.");
+    console.log("   This is permanent until manually revoked. If the contract is ever compromised,");
+    console.log("   all your MOR can be drained.");
+  }
+
+  const approveAnswer = await new Promise(r => {
+    const promptText = isUnlimited
+      ? "⚠️  CONFIRM UNLIMITED APPROVAL? (type yes to proceed) "
+      : `⚠️  CONFIRM APPROVE ${amountStr} MOR? (type yes to proceed) `;
+    process.stdout.write(promptText);
+    process.stdin.once("data", d => r(d.toString().trim().toLowerCase()));
+  });
+  if (approveAnswer !== "yes") {
+    console.log("Cancelled by user.");
+    process.exit(0);
+  }
+
+  if (global.DRY_RUN) {
+    console.log("\n🔒 DRY-RUN: Simulation passed. Skipping actual approve transaction.");
+    process.exit(0);
+  }
+
   try {
     const tx = await walletClient.writeContract({
       address: MOR_TOKEN,
@@ -518,9 +590,30 @@ async function cmdExportKey() {
     process.exit(1);
   }
   const account = getAccount(key);
+
+  // === STAGE 5: Double confirmation + countdown ===
+  console.log("\n⚠️  WARNING: You are about to export your PRIVATE KEY in cleartext.");
+  console.log("   This is EXTREMELY DANGEROUS. Anyone with this key controls your wallet.");
+  console.log("   Type 'YES I UNDERSTAND' to continue (exact match required).");
+
+  const confirm = await new Promise(r => {
+    process.stdout.write("> ");
+    process.stdin.once("data", d => r(d.toString().trim()));
+  });
+
+  if (confirm !== "YES I UNDERSTAND") {
+    console.log("Export cancelled.");
+    process.exit(0);
+  }
+
+  console.log("   Proceeding in 5 seconds... Press Ctrl+C to abort.");
+  await new Promise(r => setTimeout(r, 5000));
+
   console.log(`\n⚠️  PRIVATE KEY — DO NOT SHARE THIS WITH ANYONE\n`);
   console.log(`   Address: ${account.address}`);
   console.log(`   Key:     ${key}\n`);
+
+  process.exit(0); // stdin left in flowing mode — force clean exit
 }
 
 async function cmdImportKey(privateKey) {
@@ -585,6 +678,12 @@ Examples:
 
 // --- Main ---
 const [,, command, ...args] = process.argv;
+
+// === GLOBAL DRY-RUN SAFETY ===
+if (process.argv.includes("--dry-run")) {
+  console.log("🔒 DRY-RUN MODE ENABLED — no real transactions will be sent");
+  global.DRY_RUN = true;
+}
 
 switch (command) {
   case "setup":
