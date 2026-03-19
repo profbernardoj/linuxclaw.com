@@ -16,7 +16,7 @@
  *   node bootstrap-client.mjs bootstrap --test-fingerprint=deadbeef01
  *
  * Environment:
- *   EVERCLAW_BOOTSTRAP_URL - API endpoint (default: https://everclawkeyapi-ever-claw.vercel.app)
+ *   EVERCLAW_BOOTSTRAP_URL - API endpoint (default: https://api.everclaw.xyz)
  *   TEST_FINGERPRINT - Override fingerprint for testing
  *   NODE_ENV=test - Use Base Sepolia instead of Base mainnet
  */
