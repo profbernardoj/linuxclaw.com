@@ -18,7 +18,9 @@ curl -fsSL https://get.everclaw.xyz | bash
 
 This guided installer:
 - ✅ Checks for required dependencies (curl, git, Node.js, npm, Homebrew, OpenClaw)
-- ✅ Prompts to install any missing dependencies
+- ✅ Auto-installs missing dependencies with real verification
+- ✅ Works on **admin and non-admin macOS accounts** (nvm fallback for Node.js)
+- ✅ Supports Apple Silicon and Intel Macs
 - ✅ Clones EverClaw to the right location
 - ✅ Bootstraps a **free GLM-5 starter key** (1,000 requests/day)
 - ✅ Optionally installs the Morpheus proxy-router for P2P inference
@@ -41,12 +43,16 @@ git clone https://github.com/profbernardoj/everclaw.git ~/.openclaw/workspace/sk
 
 ### Prerequisites
 
+The installer handles all of these automatically. Listed here for reference:
+
 | Dependency | How to Install | Required For |
 |------------|----------------|--------------|
-| **Homebrew** (macOS) | `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"` | Package manager |
-| **Node.js** (v18+) | `brew install node` | Bootstrap scripts, proxy |
-| **Git** | `brew install git` | Skill installation |
-| **OpenClaw** | `curl -fsSL https://get.openclaw.ai \| bash` | Agent runtime |
+| **Homebrew** (macOS) | Auto-installed (admin required) | Package manager |
+| **Node.js** (v18+) | Via Homebrew or nvm (non-admin fallback) | Bootstrap scripts, proxy |
+| **Git** | Via Homebrew or Xcode CLI tools | Skill installation |
+| **OpenClaw** | `npm install -g openclaw@latest` | Agent runtime |
+
+> 💡 **Non-admin Mac?** The installer automatically detects non-admin accounts and uses [nvm](https://github.com/nvm-sh/nvm) to install Node.js without requiring administrator privileges. No manual setup needed.
 
 **Quick check:** Run `curl -fsSL https://get.everclaw.xyz | bash -s -- --check-only` to verify your environment.
 
