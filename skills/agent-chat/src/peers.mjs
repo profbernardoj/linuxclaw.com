@@ -7,7 +7,24 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getPeersFilePath } from './paths.mjs';
+import { getPeersFilePath, resolveAgentId } from './paths.mjs';
+
+/**
+ * Effective agent ID for this process. Resolved once from env.
+ * Ensures each buddy bot reads/writes its own peers.json.
+ */
+let _agentId;
+function effectiveAgentId() {
+  if (_agentId === undefined) {
+    _agentId = resolveAgentId() ?? null;
+  }
+  return _agentId;
+}
+
+/** Return peers file path scoped to the current agent. */
+function effectivePeersFile() {
+  return getPeersFilePath(effectiveAgentId());
+}
 
 export const RELATIONSHIPS = ['unknown', 'stranger', 'colleague', 'friend', 'family'];
 
@@ -67,7 +84,7 @@ let _cache = null;
 async function loadCache() {
   if (_cache) return _cache;
   try {
-    const raw = await fs.readFile(getPeersFilePath(), 'utf8');
+    const raw = await fs.readFile(effectivePeersFile(), 'utf8');
     _cache = JSON.parse(raw);
   } catch {
     _cache = { version: 1, peers: {} };
@@ -82,7 +99,7 @@ async function flushCache() {
   if (!_cache) return;
   // Serialize concurrent flushes — in-memory cache is shared, file writes must not race
   _flushLock = _flushLock.then(async () => {
-    const peersFile = getPeersFilePath();
+    const peersFile = effectivePeersFile();
     await fs.mkdir(path.dirname(peersFile), { recursive: true });
     // Atomic write: temp file + rename (POSIX-atomic)
     const tmpPath = peersFile + '.tmp.' + process.pid + '.' + (++_flushCounter);

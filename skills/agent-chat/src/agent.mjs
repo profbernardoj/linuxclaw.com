@@ -11,6 +11,9 @@ import { Agent } from '@xmtp/agent-sdk';
 import { handleConsent, initConsent } from './consent.mjs';
 import { routerMiddleware } from './router.mjs';
 
+/** Track the agent ID for this process (set in startAgent). */
+let _startedAgentId = null;
+
 // Comms-guard singleton — created once at module level (optional peer dependency).
 // All functions cached here to avoid repeated dynamic imports in hot paths.
 let commsGuard = null;
@@ -136,6 +139,8 @@ async function guardAdapterMiddleware(ctx, next) {
  */
 export async function startAgent(identity, config) {
   try {
+    _startedAgentId = identity.agentId || null;
+
     // Set env vars for createFromEnv
     process.env.XMTP_WALLET_KEY = identity.secrets.XMTP_WALLET_KEY;
     process.env.XMTP_DB_ENCRYPTION_KEY = identity.secrets.XMTP_DB_ENCRYPTION_KEY;
@@ -168,7 +173,7 @@ export async function startAgent(identity, config) {
     const inboxId = agentInstance.client?.inboxId;
     if (!identity.metadata.inboxId && inboxId) {
       const { saveInboxId } = await import('./identity.mjs');
-      await saveInboxId(inboxId);
+      await saveInboxId(inboxId, _startedAgentId);
       console.log(`[Agent] InboxId registered: ${inboxId}`);
     }
 

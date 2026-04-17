@@ -18,6 +18,11 @@ let pollInterval = null;
 const processed = new Map(); // filename → timestamp for TTL-based eviction
 const PROCESSED_TTL_MS = 60_000; // 60s TTL per entry (prevents unbounded growth)
 
+/** Return the effective outbox dir for the current agent */
+function effectiveOutboxDir() {
+  return getOutboxDir(currentAgentId);
+}
+
 function markProcessed(filename) {
   processed.set(filename, Date.now());
   // Evict stale entries periodically
@@ -34,7 +39,7 @@ async function handleOutbound(filename) {
   if (processed.has(filename)) return;
   markProcessed(filename);
 
-  const outboxDir = getOutboxDir();
+  const outboxDir = effectiveOutboxDir();
   const filePath = path.join(outboxDir, filename);
 
   try {
@@ -88,7 +93,7 @@ async function handleOutbound(filename) {
  */
 async function pollOutbox() {
   try {
-    const outboxDir = getOutboxDir();
+    const outboxDir = effectiveOutboxDir();
     const files = await fsp.readdir(outboxDir);
     for (const f of files) {
       if (f.endsWith('.json') && !processed.has(f)) {

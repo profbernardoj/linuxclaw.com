@@ -2,7 +2,12 @@
 /**
  * cli.mjs
  * Agent-chat CLI — uses lazy imports to avoid loading middleware on simple commands.
+ *
+ * Multi-identity: pass --agent-id <id> to operate on a specific buddy bot.
+ * Example: node cli.mjs status --agent-id alice
  */
+
+import { resolveAgentId, getXmtpDir } from './src/paths.mjs';
 
 function timeSince(date) {
   const s = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -12,12 +17,46 @@ function timeSince(date) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-const cmd = process.argv[2];
+// Parse --agent-id from any position in argv
+function extractAgentId(args) {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--agent-id' && args[i + 1]) {
+      const id = args[i + 1];
+      // Remove --agent-id and its value from args
+      args.splice(i, 2);
+      return id;
+    }
+  }
+  return undefined;
+}
+
+const args = process.argv.slice(2);
+const cliAgentId = extractAgentId(args);
+
+// Set env so downstream modules (paths.mjs, identity.mjs, peers.mjs) resolve correctly
+// Validate both CLI input and pre-existing env to close env injection vector
+let effectiveAgentId;
+try {
+  if (cliAgentId) {
+    effectiveAgentId = resolveAgentId(cliAgentId);
+  } else if (process.env.AGENT_CHAT_AGENT_ID) {
+    // Validate pre-existing env (defense in depth)
+    effectiveAgentId = resolveAgentId(process.env.AGENT_CHAT_AGENT_ID);
+  }
+} catch (err) {
+  console.error(`❌ Invalid agent ID: ${err.message}`);
+  process.exit(1);
+}
+if (effectiveAgentId) {
+  process.env.AGENT_CHAT_AGENT_ID = effectiveAgentId;
+}
+
+const cmd = args[0];
 
 switch (cmd) {
   case 'status': {
     const { getStatus } = await import('./src/identity.mjs');
-    const status = await getStatus();
+    const status = await getStatus(effectiveAgentId);
     console.log(JSON.stringify(status, null, 2));
     break;
   }
@@ -25,8 +64,7 @@ switch (cmd) {
   case 'health': {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
-    const os = await import('node:os');
-    const xmtpDir = process.env.AGENT_CHAT_XMTP_DIR || path.join(os.homedir(), '.everclaw', 'xmtp');
+    const xmtpDir = getXmtpDir(effectiveAgentId);
     try {
       const health = JSON.parse(await fs.readFile(path.join(xmtpDir, 'health.json'), 'utf8'));
       console.log(JSON.stringify(health, null, 2));
@@ -50,20 +88,20 @@ switch (cmd) {
   }
 
   case 'trust-peer': {
-    const args = process.argv.slice(3);
-    const address = args[0];
+    const tpArgs = args.slice(1);
+    const address = tpArgs[0];
 
     // Parse flags
-    const asIdx = args.indexOf('--as');
-    const nameIdx = args.indexOf('--name');
-    const relationship = asIdx !== -1 ? args[asIdx + 1] : 'stranger';
+    const asIdx = tpArgs.indexOf('--as');
+    const nameIdx = tpArgs.indexOf('--name');
+    const relationship = asIdx !== -1 ? tpArgs[asIdx + 1] : 'stranger';
     let name = null;
     if (nameIdx !== -1) {
       // Collect name tokens until next flag (--) or end of args
       const nameTokens = [];
-      for (let i = nameIdx + 1; i < args.length; i++) {
-        if (args[i].startsWith('--')) break;
-        nameTokens.push(args[i]);
+      for (let i = nameIdx + 1; i < tpArgs.length; i++) {
+        if (tpArgs[i].startsWith('--')) break;
+        nameTokens.push(tpArgs[i]);
       }
       name = nameTokens.join(' ') || null;
     }
@@ -122,7 +160,7 @@ Examples:
   }
 
   case 'peers': {
-    const subcmd = process.argv[3] || 'list';
+    const subcmd = args[1] || 'list';
     const { getAllPeers, getPeer } = await import('./src/peers.mjs');
 
     if (subcmd === 'list') {
@@ -143,7 +181,7 @@ Examples:
         console.log(`    Source:       ${p.source || 'unknown'}\n`);
       }
     } else if (subcmd === 'show') {
-      const addr = process.argv[4];
+      const addr = args[2];
       if (!addr) {
         console.log('Usage: agent-chat peers show <address>');
         break;
@@ -161,19 +199,18 @@ Examples:
   }
 
   case 'send': {
-    const address = process.argv[3];
-    const message = process.argv.slice(4).join(' ');
+    const address = args[1];
+    const message = args.slice(2).join(' ');
     if (!address || !message) {
-      console.log('Usage: agent-chat send <address> <message>');
+      console.log('Usage: agent-chat send <address> <message> [--agent-id <id>]');
       break;
     }
 
     const fsMod = await import('node:fs/promises');
     const pathMod = await import('node:path');
-    const osMod = await import('node:os');
     const cryptoMod = await import('node:crypto');
 
-    const xmtpDir = process.env.AGENT_CHAT_XMTP_DIR || pathMod.join(osMod.homedir(), '.everclaw', 'xmtp');
+    const xmtpDir = getXmtpDir(effectiveAgentId);
     const outboxDir = pathMod.join(xmtpDir, 'outbox');
     await fsMod.mkdir(outboxDir, { recursive: true });
 
@@ -201,5 +238,13 @@ Usage:
   agent-chat trust-peer <addr>     Trust a peer (--as <relationship> --name <label>)
   agent-chat peers [list|show]     List or inspect peers
   agent-chat send <addr> <msg>     Send a message via outbox
+
+Multi-identity:
+  --agent-id <id>                  Operate on a specific buddy bot (e.g. alice)
+
+Examples:
+  agent-chat status --agent-id alice
+  agent-chat send 0x... "hello" --agent-id bob
+  agent-chat peers list --agent-id alice
 `);
 }

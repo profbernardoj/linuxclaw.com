@@ -7,9 +7,21 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { getInboxDir } from './paths.mjs';
+import { getInboxDir, resolveAgentId } from './paths.mjs';
 import { getPeer, getContextProfile } from './peers.mjs';
 import { messageCounter } from './health.mjs';
+
+/**
+ * Effective agent ID for this daemon process.
+ * Resolved once from env (AGENT_CHAT_AGENT_ID) at first use.
+ */
+let _agentId;
+function effectiveAgentId() {
+  if (_agentId === undefined) {
+    _agentId = resolveAgentId() ?? null;
+  }
+  return _agentId;
+}
 
 export async function routerMiddleware(ctx, next) {
   const tier = ctx.tier || 1;
@@ -32,7 +44,7 @@ export async function routerMiddleware(ctx, next) {
     return next();
   }
 
-  const inboxDir = getInboxDir();
+  const inboxDir = getInboxDir(effectiveAgentId());
   await fs.mkdir(inboxDir, { recursive: true });
 
   if (tier === 3) {
