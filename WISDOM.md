@@ -1,6 +1,6 @@
 # WISDOM.md — Earned Truths
 
-*Knowledge is abundant. Wisdom is uncommon. This file captures the hard-won insights, principles, and truths that David has learned through experience — not just what he knows, but what he understands deeply.*
+*Knowledge is abundant. Wisdom is uncommon. This file captures hard-won insights, principles, and truths learned through experience — not just what you know, but what you understand deeply.*
 
 ---
 
@@ -110,7 +110,7 @@ This is not a knowledge base. It's a compendium of:
 
 ---
 
-*Source: "How to Build Unicorn — 33 Laws for Building A Great Company" by [REDACTED]*
+*Source: Personal experience and lessons learned*
 
 ---
 
@@ -170,7 +170,7 @@ This is not a knowledge base. It's a compendium of:
 
 ## How This File Grows
 
-1. **Organic capture** — When David shares insight, hard-won lesson, or principle, I'll add it here
+1. **Organic capture** — When your human shares insight, hard-won lesson, or principle, add it here
 2. **Periodic distillation** — During heartbeats, I may review conversations for wisdom worth preserving
 3. **Curation** — This isn't a brain dump; it's the best of what's proven true
 4. **Tools** — When wisdom fits in AGENTS.md, TOOLS.md, or USER.md, it goes there too
