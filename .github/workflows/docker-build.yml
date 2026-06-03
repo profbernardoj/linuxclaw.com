@@ -70,6 +70,7 @@ jobs:
       packages: write
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix: ${{ fromJson(needs.discover-flavors.outputs.matrix) }}
 
     steps:
