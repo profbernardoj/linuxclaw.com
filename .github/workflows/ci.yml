@@ -1,5 +1,9 @@
 name: Morpheus Skill CI/CD Pipeline
 
+# NOTE: This workflow runs in both monorepo (packages/core/*) and composed
+# flavor repos (root-level). Use $SCRIPTS_DIR / $DOCKERFILE env vars set by
+# the "Detect repo structure" step. Do not hardcode packages/core/ paths.
+
 on:
   push:
     branches: [ main ]
@@ -13,6 +17,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect repo structure
+        id: detect
+        run: |
+          if [ -d "packages/core/scripts" ]; then
+            echo "SCRIPTS_DIR=packages/core/scripts" >> $GITHUB_OUTPUT
+          else
+            echo "SCRIPTS_DIR=scripts" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -22,16 +35,25 @@ jobs:
       - run: npm ci
 
       - name: Node syntax check
-        run: node --check packages/core/scripts/*.mjs
+        run: node --check ${{ steps.detect.outputs.SCRIPTS_DIR }}/*.mjs
 
       - name: Shell syntax check
-        run: bash -n packages/core/scripts/*.sh
+        run: bash -n ${{ steps.detect.outputs.SCRIPTS_DIR }}/*.sh
 
   unit-tests:
     name: Wallet Tests
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect repo structure
+        id: detect
+        run: |
+          if [ -d "packages/core/scripts" ]; then
+            echo "SCRIPTS_DIR=packages/core/scripts" >> $GITHUB_OUTPUT
+          else
+            echo "SCRIPTS_DIR=scripts" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -42,7 +64,7 @@ jobs:
       - run: npm ci
 
       - name: Run wallet test suite
-        run: node --test packages/core/scripts/everclaw-wallet.test.mjs
+        run: node --test ${{ steps.detect.outputs.SCRIPTS_DIR }}/everclaw-wallet.test.mjs
         env:
           EVERCLAW_YES: "1"
 
@@ -51,6 +73,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect repo structure
+        id: detect
+        run: |
+          if [ -d "packages/core/scripts" ]; then
+            echo "SCRIPTS_DIR=packages/core/scripts" >> $GITHUB_OUTPUT
+          else
+            echo "SCRIPTS_DIR=scripts" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -61,7 +92,7 @@ jobs:
       - run: npm ci
 
       - name: Run proxy test suite
-        run: node --test packages/core/scripts/morpheus-proxy.test.mjs
+        run: node --test ${{ steps.detect.outputs.SCRIPTS_DIR }}/morpheus-proxy.test.mjs
 
   security-scan:
     name: Secret Scanning
@@ -84,8 +115,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Detect repo structure
+        id: detect
+        run: |
+          if [ -d "packages/core/scripts" ]; then
+            echo "DOCKERFILE=packages/core/Dockerfile" >> $GITHUB_OUTPUT
+          else
+            echo "DOCKERFILE=Dockerfile" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build Docker image
-        run: docker build -f packages/core/Dockerfile -t everclaw-test .
+        run: docker build -f ${{ steps.detect.outputs.DOCKERFILE }} -t everclaw-test .
         env:
           DOCKER_BUILDKIT: "1"
 
