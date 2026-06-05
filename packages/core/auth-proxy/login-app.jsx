@@ -60,6 +60,7 @@ async function sendTokenToProxy(accessToken) {
 function LoginInner() {
   const { ready, authenticated, getAccessToken } = usePrivy();
   const [sent, setSent] = useState(false);
+  const [loginTriggered, setLoginTriggered] = useState(false);
 
   const { login } = useLogin({
     onComplete: async () => {
@@ -92,12 +93,15 @@ function LoginInner() {
     }
   }, [ready, authenticated, sent, getAccessToken]);
 
-  // Auto-trigger Privy login when ready and not yet authenticated
+  // Auto-trigger Privy login ONCE when ready and not yet authenticated.
+  // loginTriggered guard prevents re-calling login() on re-renders,
+  // which would reset the Privy modal and kill the OTP code entry step.
   useEffect(() => {
-    if (ready && !authenticated && !sent) {
+    if (ready && !authenticated && !sent && !loginTriggered) {
+      setLoginTriggered(true);
       login();
     }
-  }, [ready, authenticated, sent, login]);
+  }, [ready, authenticated, sent, loginTriggered, login]);
 
   if (!ready) {
     return (
