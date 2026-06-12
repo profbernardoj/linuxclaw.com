@@ -1,5 +1,5 @@
 /**
- * EverClaw Login App — React entrypoint for Privy authentication.
+ * OpenClaw Login App — React entrypoint for Privy authentication.
  *
  * Bundled at Docker build time (no runtime CDN dependency).
  * Configuration (__PRIVY_APP_ID__, __PRIVY_CLIENT_ID__) injected by auth proxy

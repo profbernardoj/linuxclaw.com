@@ -78,6 +78,19 @@ const PRIVY_ISSUER = 'privy.io';
 const COOKIE_NAME = 'everclaw_session';
 const MAX_BODY_BYTES = 16384; // 16 KB limit for POST bodies
 
+// ─── CIG (Central Inference Gateway) Configuration ───────────────────────────
+// When CIG env vars are set, the auth-proxy acts as a CIG proxy for internal
+// OpenClaw inference requests. OpenClaw calls localhost:18789/v1/chat/completions
+// and the proxy mints a CIG token, then forwards to the external CIG endpoint.
+const CIG_CONFIG = {
+  mintUrl: process.env.CIG_MINT_URL || '',
+  inferenceUrl: process.env.CIG_INFERENCE_URL || '',
+  bindingSecret: process.env.CIG_BINDING_SECRET || '',
+  containerFqdn: process.env.CIG_CONTAINER_FQDN || process.env.CONTAINER_FQDN || '',
+};
+const CIG_ENABLED = !!(CIG_CONFIG.mintUrl && CIG_CONFIG.inferenceUrl && CIG_CONFIG.bindingSecret);
+let cigTokenCache = { token: '', expiresAt: 0 };
+
 // ─── Rate Limiter (in-memory, per-IP) ────────────────────────────────────────
 // Sliding window: max AUTH_RATE_LIMIT attempts per AUTH_RATE_WINDOW_MS per IP.
 // Prevents brute-force token guessing and ES256 verification CPU exhaustion.
@@ -427,6 +440,105 @@ proxy.on('error', (error, req, res) => {
 
 // ─── Request Handler ─────────────────────────────────────────────────────────
 
+// ─── CIG Proxy Handler ─────────────────────────────────────────────────────────────────────
+// Mints a CIG token (cached, refreshed 60s before expiry) and forwards
+// the inference request to the external CIG endpoint.
+
+async function mintCigToken() {
+  // Return cached token if still valid (with 60s buffer)
+  if (cigTokenCache.token && Date.now() < cigTokenCache.expiresAt - 60_000) {
+    return cigTokenCache.token;
+  }
+
+  // Resolve FQDN: use env var, or detect from container hostname
+  let fqdn = CIG_CONFIG.containerFqdn;
+  if (!fqdn) {
+    // Fallback: won't work if CONTAINER_FQDN isn't set
+    console.warn('[cig-proxy] No CONTAINER_FQDN set, CIG token mint may fail');
+    fqdn = 'unknown';
+  }
+
+  const resp = await fetch(CIG_CONFIG.mintUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fqdn,
+      binding_secret: CIG_CONFIG.bindingSecret,
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`CIG mint failed (${resp.status}): ${body}`);
+  }
+
+  const data = await resp.json();
+  if (!data.token) throw new Error('CIG mint returned no token');
+
+  // Cache with 10-minute TTL (CIG tokens expire in 10 min)
+  cigTokenCache = {
+    token: data.token,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  };
+
+  console.log(`[cig-proxy] Minted CIG token for ${fqdn}`);
+  return data.token;
+}
+
+async function handleCigProxy(req, res, pathname) {
+  try {
+    // Read the request body
+    const chunks = [];
+    for await (const chunk of req) {
+      chunks.push(chunk);
+    }
+    const bodyBuf = Buffer.concat(chunks);
+
+    // Mint or reuse cached CIG token
+    const cigToken = await mintCigToken();
+
+    // Forward to CIG inference endpoint
+    // The CIG inference URL is like: https://xxx.supabase.co/functions/v1/cig-inference
+    // We append the pathname (e.g. /v1/chat/completions)
+    const targetUrl = CIG_CONFIG.inferenceUrl + pathname;
+
+    const proxyResp = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': req.headers['content-type'] || 'application/json',
+        'Authorization': `Bearer ${cigToken}`,
+        'X-Container-Fqdn': CIG_CONFIG.containerFqdn,
+      },
+      body: bodyBuf,
+    });
+
+    // Stream the response back
+    res.writeHead(proxyResp.status, {
+      'Content-Type': proxyResp.headers.get('content-type') || 'application/json',
+      'Cache-Control': 'no-store',
+    });
+
+    if (proxyResp.body) {
+      const reader = proxyResp.body.getReader();
+      const pump = async () => {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) { res.end(); break; }
+          res.write(value);
+        }
+      };
+      await pump();
+    } else {
+      const text = await proxyResp.text();
+      res.end(text);
+    }
+  } catch (err) {
+    console.error('[cig-proxy] Error:', err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'inference_proxy_error', type: 'proxy_error' } }));
+  }
+}
+
 async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
@@ -523,6 +635,15 @@ async function handleRequest(req, res) {
       'Set-Cookie': clearCookie(req),
     });
     res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  // ── CIG Proxy: Internal inference requests from OpenClaw ──
+  // OpenClaw calls localhost:18789/v1/chat/completions (via mor-gateway provider)
+  // We mint a CIG token and forward to the external CIG inference endpoint.
+  // These are internal requests (no session cookie needed).
+  if (CIG_ENABLED && pathname.startsWith('/v1/') && req.method === 'POST') {
+    await handleCigProxy(req, res, pathname);
     return;
   }
 
