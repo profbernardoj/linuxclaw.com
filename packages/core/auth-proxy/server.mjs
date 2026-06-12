@@ -563,8 +563,11 @@ async function handleCigProxy(req, res, url) {
       const status = err.name === 'AbortError' ? 504 : 502;
       if (!res.headersSent) {
         res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'inference_proxy_error', type: 'proxy_error' } }));
+      } else {
+        // Stream already started — don't append JSON error to partial stream
+        res.end();
       }
-      res.end(JSON.stringify({ error: { message: 'inference_proxy_error', type: 'proxy_error' } }));
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
     }
